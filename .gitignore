@@ -1,0 +1,17 @@
+
+
+# Compiled Executables
+client
+server
+*.out
+*.exe
+*.o
+
+# Core Dumps (from Segmentation Faults)
+core.*
+*.core
+
+# OS & Editor Files
+.DS_Store
+.vscode/
+.idea/
