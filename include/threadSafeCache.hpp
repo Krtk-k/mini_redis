@@ -19,7 +19,7 @@ class ThreadSafeCache {
         return num%this->buckets;
     }
     public:
-    ThreadSafeCache(int n) : buckets {
+    ThreadSafeCache(int n) : buckets(n) {
         for(int i = 0; i<buckets; i++) {
             cache.push_back(make_unique<Bucket>());
         }
