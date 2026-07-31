@@ -11,6 +11,9 @@
 #include "threadSafeCache.hpp"
 #include "threadPool.hpp"
 
+ThreadSafeCache memory(16);
+ThreadPool pool(10);
+
 void make_non_blocking(int fd) {
     int flags = fstat(fd, F_GETFL, 0);
     fstat(fd, F_SETFL, flags|O_NONBLOCKING);
@@ -61,14 +64,30 @@ int main() {
                     size_t pos;
                     while((pos = client_buffers[ative_fd].find("\r\n")) != std::string::npos) {
                         std::string command = client_buffers[active_fd].substr(0, pos);
-                        client_buffers[active_fd].erase(0, pos+4);
+                        client_buffers[active_fd].erase(0, pos+2);
                         std::stringstream ss(command);
                         std::vector<std::string> tokens;
                         std::string token;
                         while(ss >> token) {
                             if(token.empty()) tokens.push_back(token);
                         }
-
+                        if(tokens[0] == "SET") {
+                            pool.add_task([&tokens, &memory] {
+                                memory.set(tokens[1], tokens[2]);
+                                std::string res = "SUCCESS\r\n";
+                                // add error handling
+                                write(active_fd, res.c_str(), res.length());
+                            });
+                        }
+                        else if(tokens[0] == "GET") {
+                            pool.add_task([&tokens, &memory] {
+                                std::string val = memory.get(tokens[1]);
+                                std::string res;
+                                if(val == "NULL") res = "nil\r\n";
+                                else res = val +"\r\n";
+                                write(active_fd, res.c_str(), res.length());
+                            });
+                        }
                     }
                 }
                 else if(bytes_read == 0) {
@@ -81,5 +100,3 @@ int main() {
         }
     }
 }
-
-//parsing logic
