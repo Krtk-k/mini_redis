@@ -1,6 +1,7 @@
 #pragma once
 #include <unordered_map>
 #include <vector>
+#include <memory>
 #include "read_write_lock.hpp"
 
 using namespace std;
@@ -12,7 +13,7 @@ struct Bucket {
 
 class ThreadSafeCache {
     vector<unique_ptr<Bucket>> cache;
-    int bukets;
+    int buckets;
     int buck_idx(string &key) {
         hash<string> hasher;
         size_t num = hasher(key);
@@ -26,7 +27,7 @@ class ThreadSafeCache {
     }
     string get(string key) {
         int b_num = buck_idx(key);
-        unique_ptr<Bucket> curr = cache[b_num];
+        std::unique_ptr<Bucket>& curr = cache[b_num];
         curr->lock.acq_read();
         if(curr->mp.find(key) == curr->mp.end()) return "NULL";
         else return curr->mp[key];
@@ -34,8 +35,7 @@ class ThreadSafeCache {
     }
     void set(string key, string val) {
         int b_num = buck_idx(key);
-        int b_num = buck_idx(key);
-        unique_ptr<Bucket> curr = cache[b_num];
+        std::unique_ptr<Bucket>& curr = cache[b_num];
         curr->lock.acq_write();
         curr->mp[key] = val;
         curr->lock.rel_write();

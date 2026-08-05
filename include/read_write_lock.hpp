@@ -17,7 +17,7 @@ class Rw_lock {
     }
     void acq_read() {
         unique_lock<mutex> lock(mtx);
-        cv1.wait(lock, []{return writers==0 && !writing;});
+        cv1.wait(lock, [this]{return writers==0 && !writing;});
         readers++;
     }
     void rel_read() {
@@ -28,7 +28,7 @@ class Rw_lock {
     void acq_write() {
         unique_lock<mutex> lock(mtx);
         writers++;
-        cv2.wait(lock, []{return !writing && readers==0;});
+        cv2.wait(lock, [this]{return !writing && readers==0;});
         writing = true;
     }
     void rel_write() {
