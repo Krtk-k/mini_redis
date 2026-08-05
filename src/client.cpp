@@ -50,11 +50,16 @@ int main() {
             if(active_events[i].events & EPOLLOUT) {
                 std::string buffer;
                 if(clinet_no^1 == client_no+1) 
-                    buffer = "SET mohan friend\r\nSET ram friend\r\nSET samrodama enemy\r\n";
+                    buffer = "SET mohan friend\r\nSET ram friend\r\nSET lion wild\r\n";
                 else 
-                    buffer = "GET mohan\r\nGET donkey\r\n";
+                    buffer = "GET mohan\r\nGET rabbit\r\n";
 
-                write(active_fd, buffer.c_str(), buffer.length())
+                write(active_fd, buffer.c_str(), buffer.length());
+
+                struct epoll_event mod_client;
+                mod_client.events = EPOLLIN|EPOLLET;
+                mod_client.data.fd = active_fd;
+                epoll_ctl(epoll_fd, EPOLL_CTL_MOD, active_fd, &mod_client);
             }
             if(active_events[i].events & EPOLLIN) {
                 std::vector<char> temp_buf(1024);
@@ -65,13 +70,16 @@ int main() {
                     close(acive_fd);
                 }
                 else if(bytes_read>0) {
-                    client_buffers[active_fd].append(temp_buf.data());
+                    client_buffers[active_fd].append(temp_buf.data(), temp_buf.size());
                     size_t pos;
-                    while((pos = client_buffers[active_fd].find("\r\n")) != std::string::npos) {
+                    if((pos = client_buffers[active_fd].find("\r\n")) != std::string::npos) {
                         std::string server_res = client_buffers[active_fd].substr(0, pos);
                         client_buffers[active_fd].erase(0, pos+2);
                         if(server_res == "nil") continue;
                         client_processed++;
+
+                        epoll_ctl(epoll_fd, EPOLL_CTL_DEL, active_fd, nullptr);
+                        close(active_fd);
                     }
                 }
             }
