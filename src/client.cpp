@@ -1,14 +1,17 @@
 #include <unistd.h>
 #include <sys/socket.h>
-#include <netinet/inc.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/epoll.h>
 #include <vector>
-#include <sstring>
+#include <sstream>
 #include <fcntl.h>
 #include <unordered_map>
+#include <iostream>
 
 void make_non_blocking(int fd) {
-    int flags = fstat(fd, F_GETFL, 0);
-    fstat(fd, F_SETFL, flags|O_NONBLOCKING);
+    int flags = fcntl(fd, F_GETFL, 0);
+    fcntl(fd, F_SETFL, flags|O_NONBLOCK);
 }
 
 int main() {
@@ -37,19 +40,19 @@ int main() {
 
     std::cout << "\n" << client_count << " clients created successfully";
 
-    std::vector<epoll_event> active_events;
+    std::vector<epoll_event> active_events(1024);
     int client_processed = 0;
     std::unordered_map<int, std::string> client_buffers;
 
     for(int client_no = 0; client_no<client_count; client_no++) {
-        int num_events = epoll_wait(epoll_fd, active_events.data(), -1);
+        int num_events = epoll_wait(epoll_fd, active_events.data(), 1000, -1);
 
         for(int i = 0; i<num_events; i++) {
             int active_fd = active_events[i].data.fd;
 
             if(active_events[i].events & EPOLLOUT) {
                 std::string buffer;
-                if(clinet_no^1 == client_no+1) 
+                if((client_no^1) == client_no+1) 
                     buffer = "SET mohan friend\r\nSET ram friend\r\nSET lion wild\r\n";
                 else 
                     buffer = "GET mohan\r\nGET rabbit\r\n";
@@ -67,7 +70,7 @@ int main() {
                 if(bytes_read == 0) {
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, active_fd, nullptr);
                     client_buffers.erase(active_fd);
-                    close(acive_fd);
+                    close(active_fd);
                 }
                 else if(bytes_read>0) {
                     client_buffers[active_fd].append(temp_buf.data(), temp_buf.size());
