@@ -39,3 +39,25 @@ class Rw_lock {
         else cv2.notify_one();
     }
 };
+
+class ReadGuard {
+    Rw_lock& l;
+    public:
+    explicit ReadGuard(Rw_lock& lock) :l(lock) {
+        l.acq_read();
+    }
+    ~ReadGuard() {l.rel_read();}
+    ReadGuard(const ReadGuard&) = delete;
+    ReadGuard& operator = (const ReadGuard&) = delete;
+};
+
+class WriteGuard {
+    Rw_lock& l;
+    public:
+    explicit WriteGuard(Rw_lock& lock) :l(lock) {
+        l.acq_write();
+    }
+    ~WriteGuard() {l.rel_write();}
+    ReadGuard(const WriteGuard&) = delete;
+    WriteGuard& operator = (const WriteGuard&) = delete;
+};
