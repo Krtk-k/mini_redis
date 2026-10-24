@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -22,16 +23,27 @@ void make_non_blocking(int fd) {
 
 int main() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    //error
+    if(server_fd == -1) {
+        perror("socket: ");
+        return 1;
+    }
+
+    int yes = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
     struct sockaddr_in server_add;
     server_add.sin_family = AF_INET;
     server_add.sin_port = htons(8080);
     server_add.sin_addr.s_addr = INADDR_ANY;
-    bind(server_fd, (sockaddr*)&server_add, sizeof(server_add));
-    //error
+    if(bind(server_fd, (sockaddr*)&server_add, sizeof(server_add)) == -1) {
+        perror("bind: ");
+        return 1;
+    }
     make_non_blocking(server_fd);
-    listen(server_fd, 1000);
-    //error
+    if(listen(server_fd, 1000) == -1) {
+        perror("listen: ");
+        return 1;
+    }
     std::cout << "\nServer listning on port 8080\n";
 
     int epoll_fd = epoll_create1(0);
@@ -48,16 +60,21 @@ int main() {
         for(int i = 0; i<event_num; i++) {
             int active_fd = active_events[i].data.fd;
             if(active_fd == server_fd) {
-                struct sockaddr_in client_add;
-                socklen_t size = sizeof(client_add);
-                int client_fd = accept(server_fd, (sockaddr*)&client_add, &size);
-                std::cout << "[debug] Client accepted\n";
-                if(client_fd == -1) continue;
-                make_non_blocking(client_fd);
-                struct epoll_event client_event;
-                client_event.events = EPOLLIN|EPOLLET;
-                client_event.data.fd = client_fd;
-                epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &client_event);
+                while(1) {
+                    struct sockaddr_in client_add;
+                    socklen_t size = sizeof(client_add);
+                    int client_fd = accept(server_fd, (sockaddr*)&client_add, &size);
+                    if(client_fd == -1) {
+                        if(errno == EINTR) continue;
+                        break;
+                    }
+                    std::cout << "[debug] Client accepted\n";
+                    make_non_blocking(client_fd);
+                    struct epoll_event client_event;
+                    client_event.events = EPOLLIN|EPOLLET;
+                    client_event.data.fd = client_fd;
+                    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &client_event);
+                }
             }
             else {
                 std::vector<char> temp_buf(1024);
