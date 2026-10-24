@@ -14,7 +14,7 @@ class ThreadPool {
     vector<thread> workers;
     queue<function<void()>> tasks;
     bool end;
-    mutex mtx;
+    mutex mtx;  
     condition_variable cv;
 
     void worker() {
@@ -38,13 +38,20 @@ class ThreadPool {
         }
     }
     ~ThreadPool() {
-        end = true;
+        {
+            lock_guard<mutex> lock(mtx);
+            end = true;
+        }
         cv.notify_all();
         for(auto &t : workers) {
             if(t.joinable()) t.join();
         }
     }
     void add_task(function<void()> func) {
-        tasks.push(func);
+        {
+            lock_guard<mutex> lock(mtx);
+            tasks.push(func);
+        }
+        cv.notify_one();
     }
 };

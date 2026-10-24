@@ -1,3 +1,4 @@
 /home/kartik/mini_redis/build/CMakeFiles/client.dir
+/home/kartik/mini_redis/build/CMakeFiles/server.dir
 /home/kartik/mini_redis/build/CMakeFiles/edit_cache.dir
 /home/kartik/mini_redis/build/CMakeFiles/rebuild_cache.dir

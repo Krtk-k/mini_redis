@@ -1,0 +1,12 @@
+[
+{
+  "directory": "/home/kartik/mini_redis/build",
+  "command": "/usr/bin/clang++ -I/home/kartik/mini_redis/include -Wall -Wextra -Wshadow -Wnon-virtual-dtor -pedantic -Werror -g -std=gnu++20 -o CMakeFiles/client.dir/src/client.cpp.o -c /home/kartik/mini_redis/src/client.cpp",
+  "file": "/home/kartik/mini_redis/src/client.cpp"
+},
+{
+  "directory": "/home/kartik/mini_redis/build",
+  "command": "/usr/bin/clang++ -I/home/kartik/mini_redis/include -Wall -Wextra -Wshadow -Wnon-virtual-dtor -pedantic -Werror -g -std=gnu++20 -o CMakeFiles/server.dir/src/server.cpp.o -c /home/kartik/mini_redis/src/server.cpp",
+  "file": "/home/kartik/mini_redis/src/server.cpp"
+}
+]
