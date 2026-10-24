@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+
 #include "read_write_lock.hpp"
 
 using namespace std;
@@ -26,26 +27,22 @@ class ThreadSafeCache {
         }
     }
     string get(string key) {
-        int b_num = buck_idx(key);
-        std::unique_ptr<Bucket>& curr = cache[b_num];
-        curr->lock.acq_read();
-        if(curr->mp.find(key) == curr->mp.end()) return "NULL";
-        else return curr->mp[key];
-        curr->lock.rel_read();
+        Bucket& curr = *cache[buck_idx(key)];
+        ReadGuard guard(curr.lock);
+        auto it = curr.mp.find(key);
+        if(it == curr.mp.end()) return "NULL";
+        return it->second;
     }
     void set(string key, string val) {
-        int b_num = buck_idx(key);
-        std::unique_ptr<Bucket>& curr = cache[b_num];
-        curr->lock.acq_write();
-        curr->mp[key] = val;
-        curr->lock.rel_write();
+        Bucket& curr = *cache[buck_idx(key)];
+        WriteGuard guard(curr.lock);
+        curr.mp[key] = val;
     }
-    int get_size() {
+    size_t get_size() {
         size_t size = 0;
         for(int i = 0; i<buckets; i++) {
-            cache[i]->lock.acq_write();
+            ReadGuard guard(cache[i]->lock);
             size += cache[i]->mp.size();
-            cache[i]->lock.rel_write();
         }
         return size;
     }
