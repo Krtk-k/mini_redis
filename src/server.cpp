@@ -78,7 +78,7 @@ int main() {
                         std::cout << "[debug] tokens read = " << tokens.size() << "\n";
                         if(tokens[0] == "SET") {
                             std::cout << "[debug] inside tokens[0] == SET\n";
-                            pool.add_task([tokens, active_fd] {
+                            pool.add_task([tokens = std::move(tokens), active_fd] {
                                 std::cout << "\n[debug] thread inside thread pool\n";
                                 memory.set(tokens[1], tokens[2]);
                                 std::string res = "SUCCESS\r\n";
@@ -88,7 +88,7 @@ int main() {
                         }
                         else if(tokens[0] == "GET") {
                             std::cout << "inside tokens[0] == GET\n";
-                            pool.add_task([tokens, active_fd] {
+                            pool.add_task([tokens = std::move(tokens), active_fd] {
                                 std::cout << "\n[debug] task successfully added to thread\n";
                                 std::string val = memory.get(tokens[1]);
                                 std::string res;

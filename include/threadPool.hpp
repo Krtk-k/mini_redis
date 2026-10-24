@@ -24,7 +24,7 @@ class ThreadPool {
                 unique_lock<mutex> lock(mtx);
                 cv.wait(lock, [this]{return end || !tasks.empty();});
                 if(end && tasks.empty()) return;
-                task = tasks.front();
+                task = std::move(tasks.front());
                 tasks.pop();
             }
             task();
@@ -47,10 +47,10 @@ class ThreadPool {
             if(t.joinable()) t.join();
         }
     }
-    void add_task(function<void()> func) {
+    void add_task(const function<void()> func) {
         {
             lock_guard<mutex> lock(mtx);
-            tasks.push(func);
+            tasks.push(std::move(func));
         }
         cv.notify_one();
     }
