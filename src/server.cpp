@@ -1,8 +1,10 @@
 #include <cstdio>
 #include <iostream>
+#include <string>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
+#include <type_traits>
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <cerrno>
@@ -19,6 +21,16 @@ ThreadPool pool(10);
 void make_non_blocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, flags|O_NONBLOCK);
+}
+
+void send_reply(int fd, const std::string& res) {
+    size_t sent = 0;
+    while(sent < res.size()) {
+        ssize_t n = send(fd, res.data() + sent, res.size() - sent, MSG_NOSIGNAL);
+        if(n > 0) sent += n;
+        else if(n == -1 && errno == EINTR) continue;
+        else break;
+    }
 }
 
 int main() {
@@ -77,56 +89,55 @@ int main() {
                 }
             }
             else {
-                std::vector<char> temp_buf(1024);
-                int bytes_read = read(active_fd, temp_buf.data(), temp_buf.size());
-                if(bytes_read>0) {
-                    client_buffers[active_fd].append(temp_buf.data(), bytes_read);
-                    size_t pos;
-                    while((pos = client_buffers[active_fd].find("\r\n")) != std::string::npos) {
-                        std::string command = client_buffers[active_fd].substr(0, pos);
-                        client_buffers[active_fd].erase(0, pos+2);
-                        std::stringstream ss(command);
-                        std::vector<std::string> tokens;
-                        std::string token;
-                        while(ss >> token) {
-                            if(!token.empty()) tokens.push_back(token);
-                        }
-                        if(tokens.empty()) continue;
-                        std::cout << "[debug] tokens read = " << tokens.size() << "\n";
-                        if(tokens[0] == "SET") {
-                            std::cout << "[debug] inside tokens[0] == SET\n";
-                            pool.add_task([tokens = std::move(tokens), active_fd] {
-                                std::cout << "\n[debug] thread inside thread pool\n";
-                                memory.set(tokens[1], tokens[2]);
-                                std::string res = "SUCCESS\r\n";
-                                // add error handling
-                                write(active_fd, res.c_str(), res.length());
-                            });
-                        }
-                        else if(tokens[0] == "GET") {
-                            std::cout << "inside tokens[0] == GET\n";
-                            pool.add_task([tokens = std::move(tokens), active_fd] {
-                                std::cout << "\n[debug] task successfully added to thread\n";
-                                std::string val = memory.get(tokens[1]);
-                                std::string res;
-                                if(val == "NULL") res = "nil\r\n";
-                                else res = val +"\r\n";
-                                write(active_fd, res.c_str(), res.length());
-                            });
-                        }
+                bool should_close = false;
+                char temp_buf[4096];
+                while(1) {
+                    int bytes_read = read(active_fd, temp_buf, sizeof(temp_buf));
+                    if(bytes_read > 0) {
+                        client_buffers[active_fd].append(temp_buf, bytes_read);
+                        continue;
                     }
-                    std::cout << "[debug] servers work complete now task should be completed" << std::endl;
+                    else if(bytes_read == 0) {
+                        should_close = true;
+                        break;
+                    }
+                    else if(errno == EAGAIN || errno == EWOULDBLOCK) break;
+                    else {
+                        should_close = true;
+                        break;
+                    }
                 }
-                else if(bytes_read == 0) {
+                std::string& line = client_buffers[active_fd];
+                size_t pos;
+                while((pos = line.find("\r\n")) != std::string::npos) {
+                    std::string cmmd = line.substr(0, pos);
+                    std::stringstream ss(cmmd);
+                    line.erase(0, pos+2);
+                    string token;
+                    std::vector<std::string> tokens;
+                    while(ss >> token) tokens.push_back(token);
+                    if(tokens.empty()) continue;
+                    if(tokens.size() == 3 && tokens[0] == "SET") {
+                        pool.add_task([tokens = std::move(tokens), active_fd = std::move(&active_fd)] {
+                            memory.set(tokens[1], tokens[2]);
+                            send_reply(active_fd, "SUCCESS\r\n");
+                        });
+                    }
+                    else if(tokens.size() == 2 && tokens[0] == "GET") {
+                        pool.add_task([tokens = std::move(tokens), active_fd = std::move(active_fd)] {
+                            std::cout << "\n[debug] task successfully added to thread\n";
+                            std::string val = memory.get(tokens[1]);
+                            if(val == "NULL") send_reply(active_fd, "nil\r\n");
+                            else send_reply(active_fd, val + "\r\n");
+                        });
+                    }
+                    else send_reply(active_fd, "ERROR unknown or malformed command\r\n");
+                }
+                if(should_close) {
                     client_buffers.erase(active_fd);
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, active_fd, nullptr);
-                    close(active_fd);
+                    close(active_fd);                
                 }
-                else {
-                    if(errno == EAGAIN || errno == EWOULDBLOCK) continue;
-                    epoll_ctl(epoll_fd, EPOLL_CTL_DEL, active_fd, nullptr);
-                    close(active_fd);
-                } // Error in sending data try again
             }
         }
     }
