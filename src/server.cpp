@@ -118,7 +118,7 @@ int main() {
                     while(ss >> token) tokens.push_back(token);
                     if(tokens.empty()) continue;
                     if(tokens.size() == 3 && tokens[0] == "SET") {
-                        pool.add_task([tokens = std::move(tokens), active_fd = std::move(&active_fd)] {
+                        pool.add_task([tokens = std::move(tokens), active_fd = std::move(active_fd)] {
                             memory.set(tokens[1], tokens[2]);
                             send_reply(active_fd, "SUCCESS\r\n");
                         });
