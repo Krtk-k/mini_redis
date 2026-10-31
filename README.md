@@ -166,4 +166,5 @@ read_write_lock.hpp Custom reader-writer lock with RAII guards
 
 ## Author
 
-@Krtk-k
+Created by [Krtk-k](https://github.com/Krtk-k)
+
