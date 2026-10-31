@@ -4,7 +4,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <fcntl.h>
-#include <type_traits>
 #include <unistd.h>
 #include <sys/epoll.h>
 #include <cerrno>
@@ -15,6 +14,7 @@
 #include "threadSafeCache.hpp"
 #include "threadPool.hpp"
 
+const size_t MAX_LINE = 64 * 1024;
 ThreadSafeCache memory(16);
 ThreadPool pool(10);
 
@@ -36,56 +36,68 @@ void send_reply(int fd, const std::string& res) {
 int main() {
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(server_fd == -1) {
-        perror("socket: ");
+        perror("socket");
         return 1;
     }
 
     int yes = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
-    struct sockaddr_in server_add;
+    struct sockaddr_in server_add{};
     server_add.sin_family = AF_INET;
     server_add.sin_port = htons(8080);
     server_add.sin_addr.s_addr = INADDR_ANY;
     if(bind(server_fd, (sockaddr*)&server_add, sizeof(server_add)) == -1) {
-        perror("bind: ");
+        perror("bind");
         return 1;
     }
     make_non_blocking(server_fd);
     if(listen(server_fd, 1000) == -1) {
-        perror("listen: ");
+        perror("listen");
         return 1;
     }
     std::cout << "\nServer listning on port 8080\n";
 
     int epoll_fd = epoll_create1(0);
-    struct epoll_event event;
+    if(epoll_fd == -1) {
+        std::perror("epoll_create1");
+        return 1;
+    }
+    struct epoll_event event{};
     event.events = EPOLLIN|EPOLLET;
     event.data.fd = server_fd;
     epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &event);
+
     epoll_event active_events[1000];
 
     unordered_map<int, std::string> client_buffers;
-
     while(1) {
         int event_num = epoll_wait(epoll_fd, active_events, 1000, -1);
+        if(event_num == -1) {
+            if(errno == EINTR) continue;
+            std::perror("epoll_wait");
+            return 1;
+        }
         for(int i = 0; i<event_num; i++) {
             int active_fd = active_events[i].data.fd;
             if(active_fd == server_fd) {
                 while(1) {
-                    struct sockaddr_in client_add;
+                    struct sockaddr_in client_add{};
                     socklen_t size = sizeof(client_add);
                     int client_fd = accept(server_fd, (sockaddr*)&client_add, &size);
                     if(client_fd == -1) {
-                        if(errno == EINTR) continue;
+                        if(errno == EINTR || errno == ECONNABORTED) continue;
+                        if(errno != EAGAIN && errno != EWOULDBLOCK) perror("accept");
                         break;
                     }
-                    std::cout << "[debug] Client accepted\n";
                     make_non_blocking(client_fd);
                     struct epoll_event client_event;
                     client_event.events = EPOLLIN|EPOLLET;
                     client_event.data.fd = client_fd;
-                    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &client_event);
+                    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &client_event) == -1) {
+                        perror("epoll_ctl add");
+                        close(client_fd);
+                    }
                 }
             }
             else {
@@ -125,7 +137,6 @@ int main() {
                     }
                     else if(tokens.size() == 2 && tokens[0] == "GET") {
                         pool.add_task([tokens = std::move(tokens), active_fd = std::move(active_fd)] {
-                            std::cout << "\n[debug] task successfully added to thread\n";
                             std::string val = memory.get(tokens[1]);
                             if(val == "NULL") send_reply(active_fd, "nil\r\n");
                             else send_reply(active_fd, val + "\r\n");
@@ -133,6 +144,7 @@ int main() {
                     }
                     else send_reply(active_fd, "ERROR unknown or malformed command\r\n");
                 }
+                if(line.size() > MAX_LINE) should_close = true;
                 if(should_close) {
                     client_buffers.erase(active_fd);
                     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, active_fd, nullptr);

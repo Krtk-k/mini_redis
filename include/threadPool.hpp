@@ -47,7 +47,7 @@ class ThreadPool {
             if(t.joinable()) t.join();
         }
     }
-    void add_task(const function<void()> func) {
+    void add_task(function<void()>&& func) {
         {
             lock_guard<mutex> lock(mtx);
             tasks.push(std::move(func));

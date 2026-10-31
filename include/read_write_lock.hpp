@@ -58,6 +58,6 @@ class WriteGuard {
         l.acq_write();
     }
     ~WriteGuard() {l.rel_write();}
-    ReadGuard(const WriteGuard&) = delete;
+    WriteGuard(const WriteGuard&) = delete;
     WriteGuard& operator = (const WriteGuard&) = delete;
 };
