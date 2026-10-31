@@ -164,6 +164,6 @@ threadSafeCache.hpp Sharded in-memory store
 read_write_lock.hpp Custom reader-writer lock with RAII guards
 ```
 
-## License
+## Author
 
-This project is licensed under the MIT License.
+@Krtk-k
