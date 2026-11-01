@@ -1,6 +1,20 @@
 # mini-redis
 
-A Redis-inspired in-memory key-value server in C++17 for Linux.
+A Redis-inspired in-memory key-value server in C++20 for Linux.
+
+## Index
+
+- [Features](#features)
+- [Architecture](#architecture)
+- [Protocol](#protocol)
+- [Build and run](#build-and-run)
+- [Testing](#testing)
+- [What I learned](#what-i-learned)
+- [Known limitations](#known-limitations)
+- [Roadmap](#roadmap)
+- [Project structure](#project-structure)
+- [License](#license)
+- [Author](#author)
 
 ## Features
 
@@ -65,20 +79,29 @@ The protocol is text-based and case-sensitive. Every line ends with `\r\n`.
 cannot contain spaces. Empty lines are ignored. The string `NULL` is reserved
 internally as the miss marker.
 
-## Build & Run
+## Build and run
 
-Build the server and client with:
+The project requires CMake 3.22 or newer and a C++20-compatible compiler. From
+the repository root, configure and build both executables with:
 
 ```sh
-g++ -std=c++17 -O2 -pthread server.cpp -o server
-g++ -std=c++17 -O2 client.cpp -o client
+cmake -S . -B build
+cmake --build build --parallel
 ```
 
-Start the server, then run the client:
+The executables are created inside the `build/` directory. Start the server in
+one terminal, then run the load-testing client in another:
 
 ```sh
-./server
-./client
+./build/server
+./build/client
+```
+
+For an optimized build, select the Release configuration during configuration:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
 
 For many clients, raise the file descriptor limit first:
@@ -89,7 +112,7 @@ ulimit -n 4096
 
 ## Testing
 
-Start `./server`, then use `printf` with `\r\n` when testing with `nc`:
+Start `./build/server`, then use `printf` with `\r\n` when testing with `nc`:
 
 ```sh
 printf 'SET name kartik\r\n' | nc -q1 127.0.0.1 8080
@@ -99,7 +122,7 @@ printf 'GET name\r\n' | nc -q1 127.0.0.1 8080
 Do not use `nc -N` for tests. A half-close can cause the server to close the
 connection before replies are sent.
 
-`./client` opens `N` concurrent non-blocking clients, using half for `SET` and
+`./build/client` opens `N` concurrent non-blocking clients, using half for `SET` and
 half for `GET`. It validates every reply and prints how many clients
 completed, how many replies were wrong, and how many `GET` misses occurred.
 The number of misses varies by run because it depends on whether a `SET` lands
@@ -157,14 +180,20 @@ first.
 ## Project structure
 
 ```text
-server.cpp          Server implementation
-client.cpp          Epoll-based load tester that validates replies
-threadPool.hpp      Fixed-size thread pool
-threadSafeCache.hpp Sharded in-memory store
-read_write_lock.hpp Custom reader-writer lock with RAII guards
+├── CMakeLists.txt
+├── include/
+│   ├── read_write_lock.hpp   Custom reader-writer lock with RAII guards
+│   ├── threadPool.hpp        Fixed-size thread pool
+│   └── threadSafeCache.hpp   Sharded in-memory store
+└── src/
+    ├── client.cpp             Epoll-based load tester that validates replies
+    └── server.cpp             Server implementation
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
 
 ## Author
 
 Created by [Krtk-k](https://github.com/Krtk-k)
-
