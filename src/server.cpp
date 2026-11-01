@@ -56,7 +56,7 @@ int main() {
         perror("listen");
         return 1;
     }
-    std::cout << "\nServer listning on port 8080\n";
+    std::cout << "\nServer listening on port 8080\n";
 
     int epoll_fd = epoll_create1(0);
     if(epoll_fd == -1) {
@@ -91,7 +91,7 @@ int main() {
                         break;
                     }
                     make_non_blocking(client_fd);
-                    struct epoll_event client_event;
+                    struct epoll_event client_event{};
                     client_event.events = EPOLLIN|EPOLLET;
                     client_event.data.fd = client_fd;
                     if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &client_event) == -1) {
